@@ -1,14 +1,85 @@
-from typing import Union, Any, List
+from typing import List, Dict
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from fastapi import FastAPI
 import os
+import uvicorn
+
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 
 def get_space(num):
     return chr(32) * num
 
 
-def generate_modules(module_file_name: str, module: str, fields: list):
+class GenerateRequest(BaseModel):
+    """
+    生成model及api请求对象
+    """
+    module_name: str
+    model_file_name: str
+    api_file_name: str
+    fields: List[Dict]
+
+
+@app.post("/generate")
+async def generate(request: GenerateRequest):
+    generate_models('foundation_pit_manage', '114.115.212.214', 'postgres', '96241158a0', 54323, request.model_file_name,
+                    request.module_name, request.fields)
+    generate_api(request.api_file_name, [request.module_name], request.module_name, request.fields)
+    return "success"
+
+
+@app.post("/user/login")
+async def login():
+    return {
+        'code': 20000,
+        'data': 'admin-token'
+    }
+
+
+@app.post("/user/info")
+async def login():
+    return {
+        'code': 20000,
+        'data': 'admin-token'
+    }
+
+
+def generate_models(db_name: str, host: str, user: str, password: str, port: int, module_file_name: str, module: str,
+                    fields: list):
     with open('./%s.py' % module_file_name, 'a') as f:
-        f.write('class %s(Model):\n' % module)
+        # import modules
+        f.write('from peewee import *\n')
+        f.write('from uuid import uuid4\n')
+        f.write('from playhouse.pool import PooledPostgresqlDatabase\n')
+        f.write('from playhouse.shortcuts import ReconnectMixin\n')
+        f.write('import datetime\n\n\n')
+        # config ConnObj
+        f.write('class RetryPgDevDB(ReconnectMixin, PooledPostgresqlDatabase):\n')
+        f.write('%s_instance = None\n\n' % get_space(4))
+        f.write('%s@staticmethod\n' % get_space(4))
+        f.write('%sdef get_db_instance():\n' % get_space(4))
+        f.write('%sif not RetryPgDevDB._instance:\n' % get_space(8))
+        f.write('%sRetryPgDevDB._instance = RetryPgDevDB(\n' % get_space(12))
+        f.write('%s"%s",\n' % (get_space(16), db_name))
+        f.write('%smax_connections=8,\n' % get_space(16))
+        f.write('%sstale_timeout=300,\n' % get_space(16))
+        f.write('%shost="%s",\n' % (get_space(16), host))
+        f.write('%suser="%s",\n' % (get_space(16), user))
+        f.write('%spassword="%s",\n' % (get_space(16), password))
+        f.write('%sport=%d,\n' % (get_space(16), port))
+        f.write('%s)\n' % get_space(12))
+        f.write('%sreturn RetryPgDevDB._instance\n\n' % get_space(8))
+
+        f.write('class %s(BaseModel):\n' % module)
         f.write('\n')
         for v in fields:
             f.write(get_space(4))
@@ -22,7 +93,7 @@ def generate_modules(module_file_name: str, module: str, fields: list):
         f.write(get_space(4))
         f.write('class Meta:\n')
         f.write(get_space(8))
-        f.write("table_name = 'T_%s'" % module)
+        f.write("table_name = 'T_%s'" % module.upper())
 
 
 def generate_api(api_file_name: str, model_names: List[str], api_name: str, fields: list):
@@ -66,7 +137,7 @@ def generate_api(api_file_name: str, model_names: List[str], api_name: str, fiel
     generate_add_def(api_name, query_request, api_file_name, fields)
     generate_delete_def(api_name, base_request, api_file_name)
     generate_update_def(api_name, query_request, api_file_name, fields)
-    generate_query_def(api_name, query_request, api_file_name, fields)
+    generate_query_def(api_name, query_request, api_file_name)
 
 
 # 生成增加方法
@@ -87,9 +158,8 @@ def generate_add_def(api_name, query_request, file_name, fields):
 
         # token信息验证及commit防止异常事务卡住
         f.write('%s# 验证token\n' % get_space(8))
-        f.write('%sif "id" not in token_data.keys():\n' % get_space(8))
+        f.write('%sif "user_id" not in token_data.keys():\n' % get_space(8))
         f.write('%sreturn token_data\n' % get_space(12))
-        f.write('%sid = uuid1().hex\n' % get_space(8))
         f.write('%swith db.connection_context():\n' % get_space(8))
         f.write('%s# 确保不被异常事务卡住\n' % get_space(12))
         f.write('%sdb.execute_sql("commit")\n' % get_space(12))
@@ -106,7 +176,7 @@ def generate_add_def(api_name, query_request, file_name, fields):
                 f.write('\n')
         f.write('%s)\n' % get_space(12))
         # 执行sql
-        f.write('%s%s.execute()\n' % (get_space(12), api_name))
+        f.write('%s%s.execute()\n' % (get_space(12), api_name.lower()))
 
         # 返回值
         f.write('%sreturn jsonable_encoder({\n' % get_space(8))
@@ -144,16 +214,19 @@ def generate_delete_def(api_name, base_request, file_name):
 
         # token信息验证及commit防止异常事务卡住
         f.write('%s# 验证token\n' % get_space(8))
-        f.write('%sif "id" not in token_data.keys():\n' % get_space(8))
+        f.write('%sif "user_id" not in token_data.keys():\n' % get_space(8))
         f.write('%sreturn token_data\n' % get_space(12))
-        f.write('%sid = uuid1().hex\n' % get_space(8))
         f.write('%swith db.connection_context():\n' % get_space(8))
         f.write('%s# 确保不被异常事务卡住\n' % get_space(12))
         f.write('%sdb.execute_sql("commit")\n' % get_space(12))
 
         # 方法体
-        f.write('%s# 删除%s\n' % (get_space(12), api_name))
-        f.write('%s%s.delete().where(%s.id == request_param.id).execute()\n' % (get_space(12), api_name, api_name))
+        f.write('%sif request_param.ids is not None:\n' % get_space(12))
+        f.write('%s# 删除%s\n' % (get_space(16), api_name))
+        f.write('%s%s.delete().where(%s.id == request_param.id).execute()\n' % (get_space(16), api_name, api_name))
+        f.write('%selif request_param.ids is not None:\n' % get_space(12))
+        f.write('%s# 批量删除%s\n' % (get_space(16), api_name))
+        f.write('%s%s.delete().where(%s.id.in_(request_param.ids)).execute()\n' % (get_space(16), api_name, api_name))
 
         # 返回值
         f.write('%sreturn jsonable_encoder({\n' % get_space(8))
@@ -188,7 +261,7 @@ def generate_update_def(api_name, query_request, file_name, fields):
 
         # token信息验证
         f.write('%s# 验证token\n' % get_space(8))
-        f.write('%sif "id" not in token_data.keys():\n' % get_space(8))
+        f.write('%sif "user_id" not in token_data.keys():\n' % get_space(8))
         f.write('%sreturn token_data\n' % get_space(12))
 
         # 方法体
@@ -232,7 +305,7 @@ def generate_update_def(api_name, query_request, file_name, fields):
 
 
 # 生成查询方法
-def generate_query_def(api_name, query_request, file_name, fields):
+def generate_query_def(api_name, query_request, file_name):
     with open('%s.py' % file_name, 'a') as f:
         # 写入add方法
         f.write('@router.post("/query%s")\n' % api_name)
@@ -249,7 +322,7 @@ def generate_query_def(api_name, query_request, file_name, fields):
 
         # token信息验证及commit防止异常事务卡住
         f.write('%s# 验证token\n' % get_space(8))
-        f.write('%sif "id" not in token_data.keys():\n' % get_space(8))
+        f.write('%sif "user_id" not in token_data.keys():\n' % get_space(8))
         f.write('%sreturn token_data\n' % get_space(12))
 
         # 方法体
@@ -296,93 +369,4 @@ def generate_query_def(api_name, query_request, file_name, fields):
 
 
 if __name__ == '__main__':
-    # generate_modules('modules', 'User', [
-    #     {
-    #         'field_name': 'id',
-    #         'field_type_class': 'CharField',
-    #         'attrs': [
-    #             {
-    #                 'key': 'max_length',
-    #                 'value': '32',
-    #             },
-    #             {
-    #                 'key': 'primary_key',
-    #                 'value': 'True'
-    #             }
-    #         ]
-    #     },
-    #     {
-    #         'field_name': 'name',
-    #         'field_type_class': 'CharField',
-    #         'attrs': [
-    #             {
-    #                 'key': 'max_length',
-    #                 'value': '16'
-    #             },
-    #             {
-    #                 'key': 'null',
-    #                 'value': 'True'
-    #             }
-    #         ]
-    #     },
-    #     {
-    #         'field_name': 'add_datetime',
-    #         'field_type_class': 'DateTimeField',
-    #         'attrs': [
-    #             {
-    #                 'key': 'default',
-    #                 'value': 'datetime.datetime.now',
-    #             },
-    #             {
-    #                 'key': 'formats',
-    #                 'value': "['%Y-%m-%d %H:%M:%S', ]"
-    #             }
-    #         ]
-    #     }
-    # ])
-
-    generate_api('user_api', ['User', 'Role', 'db'], 'User',
-                 [
-                     {
-                         'field_name': 'id',
-                         'field_type_class': 'CharField',
-                         'attrs': [
-                             {
-                                 'key': 'max_length',
-                                 'value': '32',
-                             },
-                             {
-                                 'key': 'primary_key',
-                                 'value': 'True'
-                             }
-                         ]
-                     },
-                     {
-                         'field_name': 'name',
-                         'field_type_class': 'CharField',
-                         'attrs': [
-                             {
-                                 'key': 'max_length',
-                                 'value': '16'
-                             },
-                             {
-                                 'key': 'null',
-                                 'value': 'True'
-                             }
-                         ]
-                     },
-                     {
-                         'field_name': 'add_datetime',
-                         'field_type_class': 'DateTimeField',
-                         'attrs': [
-                             {
-                                 'key': 'default',
-                                 'value': 'datetime.datetime.now',
-                             },
-                             {
-                                 'key': 'formats',
-                                 'value': "['%Y-%m-%d %H:%M:%S', ]"
-                             }
-                         ]
-                     }
-                 ])
+    uvicorn.run(app, host='0.0.0.0', port=10002)

@@ -517,7 +517,7 @@ class AdCodeBaseRequest(BaseRequest):
     )
 
 
-class AdCodeQueryRequest(AdCodeBaseRequest):
+class AdCodeQueryRequest(BaseQueryRequest, AdCodeBaseRequest):
     province_name_like: Optional[str] = Field(
         None,
         description="省份名称模糊匹配"
@@ -598,21 +598,180 @@ class AdCodeQueryRequest(AdCodeBaseRequest):
         None,
         description="街道名称正序排序"
     )
+
+
+class SettlementBaseRequest(BaseRequest):
+    """
+    沉降观测请求对象
+    """
+    point: Optional[str] = Field(
+        None,
+        description="点位id"
+    )
+    z_value: Optional[float] = Field(
+        None,
+        description="竖直坐标"
+    )
+    z_offset: Optional[float] = Field(
+        None,
+        description="竖直偏移量"
+    )
+    z_offset_total: Optional[float] = Field(
+        None,
+        description="竖直偏移总量"
+    )
+    z_offset_speed: Optional[float] = Field(
+        None,
+        description="竖直偏移速度"
+    )
+    cable_stress: Optional[float] = Field(
+        None,
+        description="锚索应力"
+    )
+    cable_stress_offset: Optional[float] = Field(
+        None,
+        description="锚索应力变化值"
+    )
+    cable_stress_offset_total: Optional[float] = Field(
+        None,
+        description="锚索应力总变化值"
+    )
+    cable_stress_offset_speed: Optional[float] = Field(
+        None,
+        description="锚索应力变化速度"
+    )
+    stage: Optional[int] = Field(
+        None,
+        description="阶段"
+    )
+    observer: Optional[str] = Field(
+        None,
+        description="观察者"
+    )
+    calculator: Optional[str] = Field(
+        None,
+        description="计算者"
+    )
+    verifier: Optional[str] = Field(
+        None,
+        description="校验者"
+    )
+    add_datetime: Optional[str] = Field(
+        None,
+        description="添加日期"
+    )
+    update_datetime: Optional[str] = Field(
+        None,
+        description="更新日期"
+    )
+
+
+class SettlementQueryRequest(BaseQueryRequest, SettlementBaseRequest):
+    observer_like: Optional[str] = Field(
+        None,
+        description="观测者模糊匹配"
+    )
+    calculator_like: Optional[str] = Field(
+        None,
+        description="计算者模糊匹配"
+    )
+    verifier_like: Optional[str] = Field(
+        None,
+        description="校验者模糊匹配"
+    )
+    stage_desc: Optional[bool] = Field(
+        False,
+        description="阶段倒序排序标志"
+    )
+    stage_asc: Optional[bool] = Field(
+        False,
+        description="阶段正序排序标志"
+    )
+    remarks_like: Optional[str] = Field(
+        None,
+        description="备注模糊匹配"
+    )
+
+
+class SettlementAlarmConfigBaseRequest(BaseRequest):
+    z_alarm_value: Optional[float] = Field(
+        None,
+        description="竖直位移报警值"
+    )
+    z_warning_value: Optional[float] = Field(
+        None,
+        description="竖直位移预警值"
+    )
+    z_speed_alarm_value: Optional[float] = Field(
+        None,
+        description="竖直位移速率报警值"
+    )
+    z_speed_warning_value: Optional[float] = Field(
+        None,
+        description="竖直位移速率预警值"
+    )
+    cable_stress_warning_value: Optional[float] = Field(
+        None,
+        description="锚索应力变化预警值"
+    )
+    cable_stress_alarm_value: Optional[float] = Field(
+        None,
+        description="锚索应力变化报警值"
+    )
+    cable_stress_speed_warning_value: Optional[float] = Field(
+        None,
+        description="锚索应力变化速率预警值"
+    )
+    cable_stress_speed_alarm_value: Optional[float] = Field(
+        None,
+        description="锚索应力变化速率报警值"
+    )
+    point: Optional[str] = Field(
+        None,
+        description="关联点位id"
+    )
+    project: Optional[str] = Field(
+        None,
+        description="关联项目id"
+    )
+    system_status: Optional[bool] = Field(
+        None,
+        description="是否为项目配置标志"
+    )
+    start_datetime: Optional[str] = Field(
+        None,
+        description="监测开始日期"
+    )
+    end_datetime: Optional[str] = Field(
+        None,
+        description="监测结束日期"
+    )
+    add_datetime: Optional[str] = Field(
+        None,
+        description="添加日期"
+    )
+    update_datetime: Optional[str] = Field(
+        None,
+        description="更新日期"
+    )
+
+
+class SettlementAlarmConfigQueryRequest(BaseQueryRequest, SettlementAlarmConfigBaseRequest):
     add_datetime_desc: Optional[bool] = Field(
         None,
-        description="添加时间倒序排序"
+        description="添加日期降序"
     )
     add_datetime_asc: Optional[bool] = Field(
         None,
-        description="添加时间正序排序"
+        description="添加日期升序"
     )
     update_datetime_desc: Optional[bool] = Field(
         None,
-        description="更新时间倒序排序"
+        description="更新日期降序"
     )
     update_datetime_asc: Optional[bool] = Field(
         None,
-        description="更新时间正序排序"
+        description="更新日期升序"
     )
 
 
